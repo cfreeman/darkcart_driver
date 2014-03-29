@@ -16,16 +16,19 @@
  * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-
 typedef struct {
   char instruction;          // The instruction that came in over the serial connection.
   float argument;            // The argument that was supplied with the instruction.
 } Command;
 
 typedef struct State_struct {
-  float target_position;
-  float target_height;
+  int target_position;      // The desired position on the linear rail for the robot.  
+  float target_height;      // The desired height of the curtain for the robot.
 } State;
+
+State state;                // The current state of the darkcart robot.
+
+static const int ACTUATOR_POT = 0
 
 /**
  * ReadCommand sucks down the lastest command from the serial port, returns
@@ -49,14 +52,50 @@ Command ReadCommand() {
   return (Command) {c, ufloat.f};
 }
 
+State update(State current_state, Command command) {
+  switch (command.instruction) {
+    case 'p':
+      current_state.target_position = (int) command.argument;
+      break;
+
+    case 'h':
+      current_state.target_height = (int) command.argument;
+      break;
+
+    default:
+      break;      // No new command - don't update anything.
+  }
+
+  // Work out the difference between the target position and the current position and apply 
+  // any movement to compensate.
+
+
+
+  // Work out the different between the target height and the current height and apply any
+  // movement co compensate.
+  float current_height = (analogRead(ACTUATOR_POT) / 255.0);
+  float dh = current_height - current_state.target_height;
+  if (dh < 0.001) {
+    // TODO: Set the actuator direction and turn it on.
+  } else if (dh > 0.001) {
+    // TODO: Set the actuator in the oposite direction and turn it on.
+  }
+
+  return current_state;
+}
+
+/**
+ * Arduino initalisation.
+ */
 void setup() {
   Serial.begin(9600);
 }
 
+/**
+ * Main Arduino loop.
+ */
 void loop() {
-  Command c = ReadCommand();
-
-
+  state = update(state, ReadCommand());
 }
 
 
