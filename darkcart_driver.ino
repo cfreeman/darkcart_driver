@@ -69,7 +69,7 @@ State update(State current_state, Command command) {
   // Work out the difference between the target position and the current position and apply 
   // any movement to compensate.
 
-
+  // TODO: Read from position sensor(s) and apply the necessary control changes.
 
   // Work out the different between the target height and the current height and apply any
   // movement co compensate.
