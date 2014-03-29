@@ -17,18 +17,22 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 typedef struct {
-  char instruction;          // The instruction that came in over the serial connection.
-  float argument;            // The argument that was supplied with the instruction.
+  char instruction;               // The instruction that came in over the serial connection.
+  float argument;                 // The argument that was supplied with the instruction.
 } Command;
 
 typedef struct State_struct {
-  int target_position;      // The desired position on the linear rail for the robot.  
-  float target_height;      // The desired height of the curtain for the robot.
+  int target_position;            // The desired position on the linear rail for the robot.  
+  float target_height;            // The desired height of the curtain for the robot.
 } State;
 
-State state;                // The current state of the darkcart robot.
+State state;                      // The current state of the darkcart robot.
 
-static const int ACTUATOR_POT = 0
+static const int STEPPER_DIR = 2; // The pin for controlling the direction of the stepper.
+static const int STEPPER_STEP = 3;// The pin for controlling the steps on the stepper.
+static const int ACTUATOR_DIR = 4;// The pin for controlling the direction of the actuator.
+static const int ACTUATOR_ON = 5; // The on/off pin for turning the actuator on or off.
+static const int ACTUATOR_POT = 0;// The pin for measuring the current position of the actuator.
 
 /**
  * ReadCommand sucks down the lastest command from the serial port, returns
@@ -95,9 +99,5 @@ void setup() {
  * Main Arduino loop.
  */
 void loop() {
-  state = update(state, ReadCommand());
+  state = update(state, ReadCommand()); 
 }
-
-
-
-
