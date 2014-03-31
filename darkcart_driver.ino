@@ -124,6 +124,8 @@ State update(State current_state, Command command) {
     // TODO: Set the actuator direction and turn it on.
   } else if (dh > 0.001) {
     // TODO: Set the actuator in the oposite direction and turn it on.
+  } else {
+    // TODO: Turn the actuator off. 
   }
 
   return current_state;
