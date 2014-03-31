@@ -65,9 +65,9 @@ void updatePosTicks() {
  * Returns the total number of position ticks that have counted since the robot was turned on.
  */
 long getPosTicks() {
-  cli();
+  cli();            // Temporarily disable interrupts so that we can read from p.
   long result = p;
-  sei();
+  sei();            // Renable interrupts so that p gets updated in the background.
   
   return result;
 }
@@ -75,17 +75,23 @@ long getPosTicks() {
 /**
  * Moves the robot backwards along the linear rail (i.e. alters position).
  */
-void moveBackward() {
+void stepBackward() {
   // TODO: Hook into the easy driver for the stepper.
 }
 
 /**
  * Moves the robot forwards along the linear rail (i.e. alters position).
  */
-void moveForward() {
+void stepForward() {
   // TODO: Hook into the easy driver for the stepper.
 }
 
+/**
+ * Updates the current state of the robot based on incoming commands and what it senses in the environment.
+ *
+ * @param current_state The current state of the robot that is to be altered.
+ * @param command any incoming commands that instruct the robot.
+ */
 State update(State current_state, Command command) {
   switch (command.instruction) {
     case 'p':
@@ -103,14 +109,14 @@ State update(State current_state, Command command) {
   // Work out the difference between the target position and the current position and apply 
   // any movement to compensate.
   long new_tick_count = getPosTicks();
-  long dt = new_tick_count - current_state.tick_count;
+  long dp = new_tick_count - current_state.tick_count;
   if (current_state.target_position - current_state.current_position > 0) {
-    moveForward();
-    current_state.current_position += dt;    
+    stepForward();
+    current_state.current_position += dp;    
 
   } else if (current_state.target_position - current_state.current_position < 0) {
-    moveBackward();
-    current_state.current_position -= dt;
+    stepBackward();
+    current_state.current_position -= dp;
 
   }  
   current_state.tick_count = new_tick_count;
@@ -140,7 +146,7 @@ void setup() {
   // Move the robot to its starting position when we are powered on.
   pinMode(POS_ENDSTOP, INPUT);
   while (digitalRead(POS_ENDSTOP) == LOW) {
-    moveBackward();
+    stepBackward();
   }
 
   attachInterrupt(1, updatePosTicks, RISING);  // Sets pin 2 on the Arduino as a RISING interrupt.
