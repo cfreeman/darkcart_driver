@@ -16,22 +16,19 @@
  * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-typedef struct {
-  char instruction;               // The instruction that came in over the serial connection.
-  float argument;                 // The argument that was supplied with the instruction.
-} Command;
+#include "darkcart_driver.h"
 
-typedef struct State_struct {
-  int target_position;            // The desired position on the linear rail for the robot.  
-  float target_height;            // The desired height of the curtain for the robot.
-} State;
+volatile long p = 0;              // The current position of the robot. DO NOT ACCESS DIRECTLY
+                                  // use getPosTicks intead.
 
 State state;                      // The current state of the darkcart robot.
 
-static const int STEPPER_DIR = 2; // The pin for controlling the direction of the stepper.
-static const int STEPPER_STEP = 3;// The pin for controlling the steps on the stepper.
-static const int ACTUATOR_DIR = 4;// The pin for controlling the direction of the actuator.
-static const int ACTUATOR_ON = 5; // The on/off pin for turning the actuator on or off.
+static const int POS_ENDSTOP = 2; // Endstop which acts as our reset button.
+static const int POS_TICKER = 3;  // Reed switch which acts our a low res rotary encoder. 
+static const int STEPPER_DIR = 4; // The pin for controlling the direction of the stepper.
+static const int STEPPER_STEP = 5;// The pin for controlling the steps on the stepper.
+static const int ACTUATOR_DIR = 6;// The pin for controlling the direction of the actuator.
+static const int ACTUATOR_ON = 7; // The on/off pin for turning the actuator on or off.
 static const int ACTUATOR_POT = 0;// The pin for measuring the current position of the actuator.
 
 /**
@@ -56,6 +53,39 @@ Command ReadCommand() {
   return (Command) {c, ufloat.f};
 }
 
+/**
+ * Callback method for POS_TICKER interrupt. Updates the total number of magnets the robot has
+ * passed over since it was turned on.
+ */
+void updatePosTicks() {
+  p++;
+}
+
+/**
+ * Returns the total number of position ticks that have counted since the robot was turned on.
+ */
+long getPosTicks() {
+  cli();
+  long result = p;
+  sei();
+  
+  return result;
+}
+
+/**
+ * Moves the robot backwards along the linear rail (i.e. alters position).
+ */
+void moveBackward() {
+  // TODO: Hook into the easy driver for the stepper.
+}
+
+/**
+ * Moves the robot forwards along the linear rail (i.e. alters position).
+ */
+void moveForward() {
+  // TODO: Hook into the easy driver for the stepper.
+}
+
 State update(State current_state, Command command) {
   switch (command.instruction) {
     case 'p':
@@ -72,8 +102,19 @@ State update(State current_state, Command command) {
 
   // Work out the difference between the target position and the current position and apply 
   // any movement to compensate.
+  long new_tick_count = getPosTicks();
+  long dt = new_tick_count - current_state.tick_count;
+  if (current_state.target_position - current_state.current_position > 0) {
+    moveForward();
+    current_state.current_position += dt;    
 
-  // TODO: Read from position sensor(s) and apply the necessary control changes.
+  } else if (current_state.target_position - current_state.current_position < 0) {
+    moveBackward();
+    current_state.current_position -= dt;
+
+  }  
+  current_state.tick_count = new_tick_count;
+  
 
   // Work out the different between the target height and the current height and apply any
   // movement co compensate.
@@ -93,6 +134,20 @@ State update(State current_state, Command command) {
  */
 void setup() {
   Serial.begin(9600);
+
+  // Move the robot to its starting position when we are powered on.
+  pinMode(POS_ENDSTOP, INPUT);
+  while (digitalRead(POS_ENDSTOP) == LOW) {
+    moveBackward();
+  }
+
+  attachInterrupt(1, updatePosTicks, RISING);  // Sets pin 2 on the Arduino as a RISING interrupt.
+
+  // Initalise the state of the robot.
+  state.tick_count = 0;
+  state.current_position = 0;
+  state.target_position = 0;
+  state.target_height = 0;
 }
 
 /**
