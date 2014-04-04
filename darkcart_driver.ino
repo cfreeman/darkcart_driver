@@ -18,21 +18,27 @@
  */
 #include "darkcart_driver.h"
 
-volatile long p = 0;              // The current position of the robot. DO NOT ACCESS DIRECTLY
-                                  // use getPosTicks intead.
+volatile long p = 0;                       // The current position of the robot. DO NOT ACCESS DIRECTLY
+                                           // use getPosTicks intead.
+volatile long pt = 0;                      // The last time the we got a reed switch tick for the position
+                                           // of the robot.
 
-State state;                      // The current state of the darkcart robot.
+State state;                               // The current state of the darkcart robot.
 
-static const int POS_ENDSTOP = 2; // Endstop which acts as our reset button.
-static const int POS_TICKER = 3;  // Reed switch which acts our a low res rotary encoder.
-static const int STEPPER_ON = 8;  // The enable pin for the stepper motor.
-static const int STEPPER_DIR = 4; // The pin for controlling the direction of the stepper.
-static const int STEPPER_STEP = 5;// The pin for controlling the steps on the stepper.
-static const int ACTUATOR_UP = 6;// The pin for controlling the direction of the actuator.
-static const int ACTUATOR_DOWN = 7; // The on/off pin for turning the actuator on or off.
-static const int ACTUATOR_POT = 0;// The pin for measuring the current position of the actuator.
+static const int POS_ENDSTOP = 2;          // Endstop which acts as our reset button.
+static const int POS_TICKER = 3;           // Reed switch which acts our a low res rotary encoder.
+static const int STEPPER_ON = 8;           // The enable pin for the stepper motor.
+static const int STEPPER_DIR = 4;          // The pin for controlling the direction of the stepper.
+static const int STEPPER_STEP = 5;         // The pin for controlling the steps on the stepper.
+static const int ACTUATOR_UP = 6;          // The pin for controlling the direction of the actuator.
+static const int ACTUATOR_DOWN = 7;        // The on/off pin for turning the actuator on or off.
+static const int ACTUATOR_POT = 0;         // The pin for measuring the current position of the actuator.
 static const long STEP_DELAY_SHOW = 80;
 static const long STEP_DELAY_INIT = 80;
+static const long MIN_TICK_TIME = 500;     // The minimum time to allow between reed switch ticks. Increase if switch bounding is a problem.
+static const int ACTUATOR_LOWER = 27;      // Minimum value read from the actutor pot
+static const int ACTUATOR_UPPER = 937;     // Maximum value read from the actuator pot.
+static const float ACTUATOR_THRESH = 0.02; // Movement threshold for the actuator pot.
 
 /**
  * ReadCommand sucks down the lastest command from the serial port, returns
@@ -61,8 +67,10 @@ Command ReadCommand() {
  * passed over since it was turned on.
  */
 void updatePosTicks() {
-  // TODO: Debounce ticks on the reed switch. - Don't allow ticks to occur faster than half a second.
-  p++;
+  if ((millis() - pt) > MIN_TICK_TIME) {
+    p++;
+    pt = millis();
+  }
 }
 
 /**
@@ -97,6 +105,10 @@ void step(long stepDelay) {
   delayMicroseconds(stepDelay);
   digitalWrite(STEPPER_STEP, HIGH);
   delayMicroseconds(stepDelay);
+}
+
+float currentHeight() {
+  return ((analogRead(ACTUATOR_POT) - ACTUATOR_LOWER) / (float) (ACTUATOR_UPPER - ACTUATOR_LOWER));
 }
 
 /**
@@ -137,14 +149,18 @@ State update(State current_state, Command command) {
   
   // Work out the different between the target height and the current height and apply any
   // movement co compensate.
-  float current_height = (analogRead(ACTUATOR_POT) / 255.0);
-  float dh = current_height - current_state.target_height;
-  if (dh < 0.001) {
-    // TODO: Set the actuator direction and turn it on.
-  } else if (dh > 0.001) {
-    // TODO: Set the actuator in the oposite direction and turn it on.
-  } else {
-    // TODO: Turn the actuator off. 
+  float dh = currentHeight() - current_state.target_height;
+  if (dh < ACTUATOR_THRESH && dh > -ACTUATOR_THRESH ) {
+      digitalWrite(ACTUATOR_UP, LOW);
+      digitalWrite(ACTUATOR_DOWN, LOW);
+
+  } else if (dh < 0.0) {
+    digitalWrite(ACTUATOR_UP, LOW);
+    digitalWrite(ACTUATOR_DOWN, HIGH);
+
+  } else if (dh > 0.0) {
+    digitalWrite(ACTUATOR_DOWN, LOW);
+    digitalWrite(ACTUATOR_UP, HIGH);
   }
 
   return current_state;
@@ -170,8 +186,11 @@ void setup() {
 //    stepBackward(STEP_DELAY_INIT);
 //  }
 
-//  digitalWrite(ACTUATOR_DOWN, HIGH); // Left switch
+  // Reset the height of the robot.
   digitalWrite(ACTUATOR_UP, HIGH);
+  while (currentHeight() > 0.0) {
+  }
+  digitalWrite(ACTUATOR_UP, LOW);
 
   attachInterrupt(1, updatePosTicks, RISING);  // Sets pin 2 on the Arduino as a RISING interrupt.
 
