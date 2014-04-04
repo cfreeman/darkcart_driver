@@ -35,7 +35,7 @@ static const int ACTUATOR_DOWN = 7;        // The on/off pin for turning the act
 static const int ACTUATOR_POT = 0;         // The pin for measuring the current position of the actuator.
 static const long STEP_DELAY_SHOW = 80;
 static const long STEP_DELAY_INIT = 80;
-static const long MIN_TICK_TIME = 500;     // The minimum time to allow between reed switch ticks. Increase if switch bounding is a problem.
+static const long MIN_TICK_TIME = 800;     // The minimum time to allow between reed switch ticks. Increase if switch bounding is a problem.
 static const int ACTUATOR_LOWER = 27;      // Minimum value read from the actutor pot
 static const int ACTUATOR_UPPER = 937;     // Maximum value read from the actuator pot.
 static const float ACTUATOR_THRESH = 0.02; // Movement threshold for the actuator pot.
@@ -128,7 +128,7 @@ State update(State current_state, Command command) {
       break;
 
     default:
-      break;      // No new command - don't update anything.
+      break;      // No new command - Don't update anything.
   }
 
   // TODO: endstop protection. If we go crazy and miss a position and hit an endstop. Wind back to the start.
@@ -140,6 +140,7 @@ State update(State current_state, Command command) {
         current_state.tick_count = new_tick_count;
         stepForward(STEP_DELAY_SHOW);
     }
+
   } else if (current_state.target_position - current_state.current_position < 0) {
     while (current_state.target_position - current_state.current_position < 0) {
         long new_tick_count = getPosTicks();
@@ -148,6 +149,7 @@ State update(State current_state, Command command) {
         current_state.tick_count = new_tick_count;
         stepBackward(STEP_DELAY_SHOW);
     }
+
   }
   
   // Work out the different between the target height and the current height and apply any
@@ -200,7 +202,7 @@ void setup() {
   // Initalise the state of the robot.
   state.tick_count = getPosTicks();
   state.current_position = 0;
-  state.target_position = 3;
+  state.target_position = 0;
   state.target_height = 0;
 }
 
