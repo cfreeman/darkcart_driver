@@ -131,21 +131,24 @@ State update(State current_state, Command command) {
       break;      // No new command - don't update anything.
   }
 
-  // Work out the difference between the target position and the current position and apply 
-  // any movement to compensate.
-  long new_tick_count = getPosTicks();
-  long dp = new_tick_count - current_state.tick_count;
-  if (current_state.target_position - current_state.current_position > 0) {
-    stepForward(STEP_DELAY_SHOW);
-    current_state.current_position += dp;    
-
-  } else if (current_state.target_position - current_state.current_position < 0) {
-    stepBackward(STEP_DELAY_SHOW);
-    current_state.current_position -= dp;
-
-  }
   // TODO: endstop protection. If we go crazy and miss a position and hit an endstop. Wind back to the start.
-  current_state.tick_count = new_tick_count;
+  if (current_state.target_position - current_state.current_position > 0) {
+    while (current_state.target_position - current_state.current_position > 0) {
+        long new_tick_count = getPosTicks();
+        long dp = new_tick_count - current_state.tick_count;
+        current_state.current_position += dp;
+        current_state.tick_count = new_tick_count;
+        stepForward(STEP_DELAY_SHOW);
+    }
+  } else if (current_state.target_position - current_state.current_position < 0) {
+    while (current_state.target_position - current_state.current_position < 0) {
+        long new_tick_count = getPosTicks();
+        long dp = new_tick_count - current_state.tick_count;
+        current_state.current_position -= dp;
+        current_state.tick_count = new_tick_count;
+        stepBackward(STEP_DELAY_SHOW);
+    }
+  }
   
   // Work out the different between the target height and the current height and apply any
   // movement co compensate.
@@ -181,12 +184,12 @@ void setup() {
   pinMode(ACTUATOR_DOWN, OUTPUT);
   pinMode(13, OUTPUT);
 
-//  Enable stepper initalisation.
-//  while (digitalRead(POS_ENDSTOP) == HIGH) {
-//    stepBackward(STEP_DELAY_INIT);
-//  }
+  // Wind the stepper to the starting position.
+  while (digitalRead(POS_ENDSTOP) == HIGH) {
+    stepBackward(STEP_DELAY_INIT);
+  }
 
-  // Reset the height of the robot.
+  // Raise the actuator to the starting position.
   digitalWrite(ACTUATOR_UP, HIGH);
   while (currentHeight() > 0.0) {
   }
@@ -195,9 +198,9 @@ void setup() {
   attachInterrupt(1, updatePosTicks, RISING);  // Sets pin 2 on the Arduino as a RISING interrupt.
 
   // Initalise the state of the robot.
-  state.tick_count = 0;
+  state.tick_count = getPosTicks();
   state.current_position = 0;
-  state.target_position = 0;
+  state.target_position = 3;
   state.target_height = 0;
 }
 
