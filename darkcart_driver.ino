@@ -24,12 +24,15 @@ volatile long p = 0;              // The current position of the robot. DO NOT A
 State state;                      // The current state of the darkcart robot.
 
 static const int POS_ENDSTOP = 2; // Endstop which acts as our reset button.
-static const int POS_TICKER = 3;  // Reed switch which acts our a low res rotary encoder. 
+static const int POS_TICKER = 3;  // Reed switch which acts our a low res rotary encoder.
+static const int STEPPER_ON = 8;  // The enable pin for the stepper motor.
 static const int STEPPER_DIR = 4; // The pin for controlling the direction of the stepper.
 static const int STEPPER_STEP = 5;// The pin for controlling the steps on the stepper.
-static const int ACTUATOR_DIR = 6;// The pin for controlling the direction of the actuator.
-static const int ACTUATOR_ON = 7; // The on/off pin for turning the actuator on or off.
+static const int ACTUATOR_UP = 6;// The pin for controlling the direction of the actuator.
+static const int ACTUATOR_DOWN = 7; // The on/off pin for turning the actuator on or off.
 static const int ACTUATOR_POT = 0;// The pin for measuring the current position of the actuator.
+static const long STEP_DELAY_SHOW = 80;
+static const long STEP_DELAY_INIT = 80;
 
 /**
  * ReadCommand sucks down the lastest command from the serial port, returns
@@ -58,6 +61,7 @@ Command ReadCommand() {
  * passed over since it was turned on.
  */
 void updatePosTicks() {
+  // TODO: Debounce ticks on the reed switch. - Don't allow ticks to occur faster than half a second.
   p++;
 }
 
@@ -75,15 +79,24 @@ long getPosTicks() {
 /**
  * Moves the robot backwards along the linear rail (i.e. alters position).
  */
-void stepBackward() {
-  // TODO: Hook into the easy driver for the stepper.
+void stepBackward(long stepDelay) {
+  digitalWrite(STEPPER_DIR, HIGH);
+  step(stepDelay);
 }
 
 /**
  * Moves the robot forwards along the linear rail (i.e. alters position).
  */
-void stepForward() {
-  // TODO: Hook into the easy driver for the stepper.
+void stepForward(long stepDelay) {
+  digitalWrite(STEPPER_DIR, LOW);
+  step(stepDelay);
+}
+
+void step(long stepDelay) {
+  digitalWrite(STEPPER_STEP, LOW);
+  delayMicroseconds(stepDelay);
+  digitalWrite(STEPPER_STEP, HIGH);
+  delayMicroseconds(stepDelay);
 }
 
 /**
@@ -111,17 +124,17 @@ State update(State current_state, Command command) {
   long new_tick_count = getPosTicks();
   long dp = new_tick_count - current_state.tick_count;
   if (current_state.target_position - current_state.current_position > 0) {
-    stepForward();
+    stepForward(STEP_DELAY_SHOW);
     current_state.current_position += dp;    
 
   } else if (current_state.target_position - current_state.current_position < 0) {
-    stepBackward();
+    stepBackward(STEP_DELAY_SHOW);
     current_state.current_position -= dp;
 
-  }  
+  }
+  // TODO: endstop protection. If we go crazy and miss a position and hit an endstop. Wind back to the start.
   current_state.tick_count = new_tick_count;
   
-
   // Work out the different between the target height and the current height and apply any
   // movement co compensate.
   float current_height = (analogRead(ACTUATOR_POT) / 255.0);
@@ -145,9 +158,20 @@ void setup() {
 
   // Move the robot to its starting position when we are powered on.
   pinMode(POS_ENDSTOP, INPUT);
-  while (digitalRead(POS_ENDSTOP) == LOW) {
-    stepBackward();
-  }
+  pinMode(POS_TICKER, INPUT);
+  pinMode(STEPPER_STEP, OUTPUT);
+  pinMode(STEPPER_DIR, OUTPUT);
+  pinMode(ACTUATOR_UP, OUTPUT);
+  pinMode(ACTUATOR_DOWN, OUTPUT);
+  pinMode(13, OUTPUT);
+
+//  Enable stepper initalisation.
+//  while (digitalRead(POS_ENDSTOP) == HIGH) {
+//    stepBackward(STEP_DELAY_INIT);
+//  }
+
+//  digitalWrite(ACTUATOR_DOWN, HIGH); // Left switch
+  digitalWrite(ACTUATOR_UP, HIGH);
 
   attachInterrupt(1, updatePosTicks, RISING);  // Sets pin 2 on the Arduino as a RISING interrupt.
 
@@ -162,5 +186,5 @@ void setup() {
  * Main Arduino loop.
  */
 void loop() {
-  state = update(state, ReadCommand()); 
+  state = update(state, ReadCommand());
 }
