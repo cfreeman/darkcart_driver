@@ -26,6 +26,12 @@ unsigned long t = 0;
 
 State state;                               // The current state of the darkcart robot.
 
+static const int POS_1 = 2;
+static const int POS_2 = 10;
+static const int POS_3 = 11;
+static const int POS_4 = 12;
+static const int POS_5 = 13;
+
 static const int POS_ENDSTOP = 2;         // Endstop which acts as our reset button.
 static const int POS_FARSTOP = 9;          // Farstop saftey kill - just in case everything goes crazy.
 static const int POS_TICKER = 3;           // Reed switch which acts our a low res rotary encoder.
@@ -114,6 +120,23 @@ float currentHeight() {
   return ((analogRead(ACTUATOR_POT) - ACTUATOR_LOWER) / (float) (ACTUATOR_UPPER - ACTUATOR_LOWER));
 }
 
+int currentPosition(State current_state) {
+  if (digitalRead(POS_1) == HIGH) {
+    return 1;
+  } else if (digitalRead(POS_2) == HIGH) {
+    return 2;
+  } else if (digitalRead(POS_3) == HIGH) {
+    return 3;
+  } else if (digitalRead(POS_4) == HIGH) {
+    return 4;
+  }  else if (digitalRead(POS_5) == HIGH) {
+    return 5;
+  } else {
+    // Currently travelling between positions -- use the last known position.
+    return current_state.current_position;
+  }
+}
+
 /**
  * Updates the current state of the robot based on incoming commands and what it senses in the environment.
  *
@@ -141,30 +164,54 @@ State update(State current_state, Command command) {
       break;      // No new command - Don't update anything.
   }
 
-  // Work out the difference between the target position and the current position and apply
-  // any movement to compensate.
-  long new_tick_count = getPosTicks();
-  long dp = new_tick_count - current_state.tick_count;
-  if (current_state.target_position - current_state.current_position > 0) {
+  current_state.current_position = currentPosition(current_state);
+  if (current_state.target_position = current_state.current_position > 0) {
     stepForward(STEP_DELAY_SHOW);
     unsigned long dt = micros() - t;
     if (dt < STEP_DELAY_SHOW) {
       delayMicroseconds(STEP_DELAY_SHOW - dt);
     }
-    current_state.current_position += dp;
-
   } else if (current_state.target_position - current_state.current_position < 0) {
     stepBackward(STEP_DELAY_SHOW);
     unsigned long dt = micros() - t;
     if (dt < STEP_DELAY_SHOW) {
       delayMicroseconds(STEP_DELAY_SHOW - dt);
     }
-    current_state.current_position -= dp;
 
   }
-  current_state.tick_count = new_tick_count;
   t = micros();
 
+// *****************************************************
+// Relative movement stuff.
+// *****************************************************
+  // Work out the difference between the target position and the current position and apply
+  // any movement to compensate.
+//  long new_tick_count = getPosTicks();
+//  long dp = new_tick_count - current_state.tick_count;
+//  if (current_state.target_position - current_state.current_position > 0) {
+//    stepForward(STEP_DELAY_SHOW);
+//    unsigned long dt = micros() - t;
+//    if (dt < STEP_DELAY_SHOW) {
+//      delayMicroseconds(STEP_DELAY_SHOW - dt);
+//    }
+//    current_state.current_position += dp;
+//
+//  } else if (current_state.target_position - current_state.current_position < 0) {
+//    stepBackward(STEP_DELAY_SHOW);
+//    unsigned long dt = micros() - t;
+//    if (dt < STEP_DELAY_SHOW) {
+//      delayMicroseconds(STEP_DELAY_SHOW - dt);
+//    }
+//    current_state.current_position -= dp;
+//
+//  }
+//  current_state.tick_count = new_tick_count;
+//  t = micros();
+
+
+// *****************************************************
+// OLD blocking movement stuff.
+// *****************************************************
   // TODO: endstop protection. If we go crazy and miss a position and hit an endstop. Wind back to the start.
 //  if (current_state.target_position - current_state.current_position > 0) {
 //    while (current_state.target_position - current_state.current_position > 0) {
