@@ -123,7 +123,14 @@ float currentHeight() {
 State update(State current_state, Command command) {
   switch (command.instruction) {
     case 'p':
-      current_state.target_position = (int) command.argument;
+      // Make sure the position is valid (between 1 and 5).
+      if ((int) command.argument < 1) {
+        current_state.target_position = 1;
+      } else if ((int) command.argument > 5) {
+        current_state.target_position = 5;
+      } else {
+        current_state.target_position = (int) command.argument;
+      }
       break;
 
     case 'h':
@@ -233,8 +240,6 @@ void setup() {
   state.target_position = 0;
   state.target_height = 0.0;
 }
-
-
 
 /**
  * Main Arduino loop.
