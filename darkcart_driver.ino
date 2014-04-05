@@ -22,10 +22,12 @@ volatile long p = 0;                       // The current position of the robot.
                                            // use getPosTicks intead.
 volatile long pt = 0;                      // The last time the we got a reed switch tick for the position
                                            // of the robot.
+unsigned long t = 0;
 
 State state;                               // The current state of the darkcart robot.
 
-static const int POS_ENDSTOP = 2;          // Endstop which acts as our reset button.
+static const int POS_ENDSTOP = 2;         // Endstop which acts as our reset button.
+static const int POS_FARSTOP = 9;          // Farstop saftey kill - just in case everything goes crazy.
 static const int POS_TICKER = 3;           // Reed switch which acts our a low res rotary encoder.
 static const int STEPPER_ON = 8;           // The enable pin for the stepper motor.
 static const int STEPPER_DIR = 4;          // The pin for controlling the direction of the stepper.
@@ -33,8 +35,8 @@ static const int STEPPER_STEP = 5;         // The pin for controlling the steps 
 static const int ACTUATOR_UP = 6;          // The pin for controlling the direction of the actuator.
 static const int ACTUATOR_DOWN = 7;        // The on/off pin for turning the actuator on or off.
 static const int ACTUATOR_POT = 0;         // The pin for measuring the current position of the actuator.
-static const long STEP_DELAY_SHOW = 80;
-static const long STEP_DELAY_INIT = 80;
+static const int STEP_DELAY_INIT = 80;
+static const long STEP_DELAY_SHOW = 250;
 static const long MIN_TICK_TIME = 800;     // The minimum time to allow between reed switch ticks. Increase if switch bounding is a problem.
 static const int ACTUATOR_LOWER = 27;      // Minimum value read from the actutor pot
 static const int ACTUATOR_UPPER = 937;     // Maximum value read from the actuator pot.
@@ -104,7 +106,8 @@ void step(long stepDelay) {
   digitalWrite(STEPPER_STEP, LOW);
   delayMicroseconds(stepDelay);
   digitalWrite(STEPPER_STEP, HIGH);
-  delayMicroseconds(stepDelay);
+
+//  delayMicroseconds(stepDelay);
 }
 
 float currentHeight() {
@@ -124,33 +127,57 @@ State update(State current_state, Command command) {
       break;
 
     case 'h':
-      current_state.target_height = (int) command.argument;
+      current_state.target_height = command.argument;
       break;
 
     default:
       break;      // No new command - Don't update anything.
   }
 
-  // TODO: endstop protection. If we go crazy and miss a position and hit an endstop. Wind back to the start.
+  // Work out the difference between the target position and the current position and apply
+  // any movement to compensate.
+  long new_tick_count = getPosTicks();
+  long dp = new_tick_count - current_state.tick_count;
   if (current_state.target_position - current_state.current_position > 0) {
-    while (current_state.target_position - current_state.current_position > 0) {
-        long new_tick_count = getPosTicks();
-        long dp = new_tick_count - current_state.tick_count;
-        current_state.current_position += dp;
-        current_state.tick_count = new_tick_count;
-        stepForward(STEP_DELAY_SHOW);
+    stepForward(STEP_DELAY_SHOW);
+    unsigned long dt = micros() - t;
+    if (dt < STEP_DELAY_SHOW) {
+      delayMicroseconds(STEP_DELAY_SHOW - dt);
     }
+    current_state.current_position += dp;
 
   } else if (current_state.target_position - current_state.current_position < 0) {
-    while (current_state.target_position - current_state.current_position < 0) {
-        long new_tick_count = getPosTicks();
-        long dp = new_tick_count - current_state.tick_count;
-        current_state.current_position -= dp;
-        current_state.tick_count = new_tick_count;
-        stepBackward(STEP_DELAY_SHOW);
+    stepBackward(STEP_DELAY_SHOW);
+    unsigned long dt = micros() - t;
+    if (dt < STEP_DELAY_SHOW) {
+      delayMicroseconds(STEP_DELAY_SHOW - dt);
     }
+    current_state.current_position -= dp;
 
   }
+  current_state.tick_count = new_tick_count;
+  t = micros();
+
+  // TODO: endstop protection. If we go crazy and miss a position and hit an endstop. Wind back to the start.
+//  if (current_state.target_position - current_state.current_position > 0) {
+//    while (current_state.target_position - current_state.current_position > 0) {
+//        long new_tick_count = getPosTicks();
+//        long dp = new_tick_count - current_state.tick_count;
+//        current_state.current_position += dp;
+//        current_state.tick_count = new_tick_count;
+//        stepForward(STEP_DELAY_SHOW);
+//    }
+//
+//  } else if (current_state.target_position - current_state.current_position < 0) {
+//    while (current_state.target_position - current_state.current_position < 0) {
+//        long new_tick_count = getPosTicks();
+//        long dp = new_tick_count - current_state.tick_count;
+//        current_state.current_position -= dp;
+//        current_state.tick_count = new_tick_count;
+//        stepBackward(STEP_DELAY_SHOW);
+//    }
+//
+//  }
   
   // Work out the different between the target height and the current height and apply any
   // movement co compensate.
@@ -189,6 +216,7 @@ void setup() {
   // Wind the stepper to the starting position.
   while (digitalRead(POS_ENDSTOP) == HIGH) {
     stepBackward(STEP_DELAY_INIT);
+    delayMicroseconds(STEP_DELAY_INIT);
   }
 
   // Raise the actuator to the starting position.
@@ -203,8 +231,10 @@ void setup() {
   state.tick_count = getPosTicks();
   state.current_position = 0;
   state.target_position = 0;
-  state.target_height = 0;
+  state.target_height = 0.0;
 }
+
+
 
 /**
  * Main Arduino loop.
