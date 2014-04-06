@@ -25,7 +25,6 @@ typedef struct {
 } Command;
 
 typedef struct State_struct {
-  long tick_count;                // The total number of counted position ticks.
   int current_position;           // The current position that the robot is on the linear rail.
   int target_position;            // The desired position on the linear rail for the robot.  
   float target_height;            // The desired height of the curtain for the robot.

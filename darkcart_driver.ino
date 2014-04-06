@@ -17,23 +17,19 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 #include "darkcart_driver.h"
-
-volatile long p = 0;                       // The current position of the robot. DO NOT ACCESS DIRECTLY
-                                           // use getPosTicks intead.
-volatile long pt = 0;                      // The last time the we got a reed switch tick for the position
                                            // of the robot.
 unsigned long t = 0;
 
 State state;                               // The current state of the darkcart robot.
 
-static const int POS_1 = 2;
+static const int POS_1 = 9;
 static const int POS_2 = 10;
 static const int POS_3 = 11;
 static const int POS_4 = 12;
 static const int POS_5 = 13;
 
 static const int POS_ENDSTOP = 2;         // Endstop which acts as our reset button.
-static const int POS_FARSTOP = 9;          // Farstop saftey kill - just in case everything goes crazy.
+static const int POS_FARSTOP = 3;          // Farstop saftey kill - just in case everything goes crazy.
 static const int POS_TICKER = 3;           // Reed switch which acts our a low res rotary encoder.
 static const int STEPPER_ON = 8;           // The enable pin for the stepper motor.
 static const int STEPPER_DIR = 4;          // The pin for controlling the direction of the stepper.
@@ -71,28 +67,6 @@ Command ReadCommand() {
 }
 
 /**
- * Callback method for POS_TICKER interrupt. Updates the total number of magnets the robot has
- * passed over since it was turned on.
- */
-void updatePosTicks() {
-  if ((millis() - pt) > MIN_TICK_TIME) {
-    p++;
-    pt = millis();
-  }
-}
-
-/**
- * Returns the total number of position ticks that have counted since the robot was turned on.
- */
-long getPosTicks() {
-  cli();            // Temporarily disable interrupts so that we can read from p.
-  long result = p;
-  sei();            // Renable interrupts so that p gets updated in the background.
-  
-  return result;
-}
-
-/**
  * Moves the robot backwards along the linear rail (i.e. alters position).
  */
 void stepBackward(long stepDelay) {
@@ -113,7 +87,12 @@ void step(long stepDelay) {
   delayMicroseconds(stepDelay);
   digitalWrite(STEPPER_STEP, HIGH);
 
-//  delayMicroseconds(stepDelay);
+  unsigned long dt = micros() - t;
+  if (dt < STEP_DELAY_SHOW) {
+    delayMicroseconds(STEP_DELAY_SHOW - dt);
+  }
+
+  t = micros();
 }
 
 float currentHeight() {
@@ -165,73 +144,13 @@ State update(State current_state, Command command) {
   }
 
   current_state.current_position = currentPosition(current_state);
-  if (current_state.target_position = current_state.current_position > 0) {
+  if (current_state.target_position - current_state.current_position > 0) {
     stepForward(STEP_DELAY_SHOW);
-    unsigned long dt = micros() - t;
-    if (dt < STEP_DELAY_SHOW) {
-      delayMicroseconds(STEP_DELAY_SHOW - dt);
-    }
+
   } else if (current_state.target_position - current_state.current_position < 0) {
     stepBackward(STEP_DELAY_SHOW);
-    unsigned long dt = micros() - t;
-    if (dt < STEP_DELAY_SHOW) {
-      delayMicroseconds(STEP_DELAY_SHOW - dt);
-    }
 
   }
-  t = micros();
-
-// *****************************************************
-// Relative movement stuff.
-// *****************************************************
-  // Work out the difference between the target position and the current position and apply
-  // any movement to compensate.
-//  long new_tick_count = getPosTicks();
-//  long dp = new_tick_count - current_state.tick_count;
-//  if (current_state.target_position - current_state.current_position > 0) {
-//    stepForward(STEP_DELAY_SHOW);
-//    unsigned long dt = micros() - t;
-//    if (dt < STEP_DELAY_SHOW) {
-//      delayMicroseconds(STEP_DELAY_SHOW - dt);
-//    }
-//    current_state.current_position += dp;
-//
-//  } else if (current_state.target_position - current_state.current_position < 0) {
-//    stepBackward(STEP_DELAY_SHOW);
-//    unsigned long dt = micros() - t;
-//    if (dt < STEP_DELAY_SHOW) {
-//      delayMicroseconds(STEP_DELAY_SHOW - dt);
-//    }
-//    current_state.current_position -= dp;
-//
-//  }
-//  current_state.tick_count = new_tick_count;
-//  t = micros();
-
-
-// *****************************************************
-// OLD blocking movement stuff.
-// *****************************************************
-  // TODO: endstop protection. If we go crazy and miss a position and hit an endstop. Wind back to the start.
-//  if (current_state.target_position - current_state.current_position > 0) {
-//    while (current_state.target_position - current_state.current_position > 0) {
-//        long new_tick_count = getPosTicks();
-//        long dp = new_tick_count - current_state.tick_count;
-//        current_state.current_position += dp;
-//        current_state.tick_count = new_tick_count;
-//        stepForward(STEP_DELAY_SHOW);
-//    }
-//
-//  } else if (current_state.target_position - current_state.current_position < 0) {
-//    while (current_state.target_position - current_state.current_position < 0) {
-//        long new_tick_count = getPosTicks();
-//        long dp = new_tick_count - current_state.tick_count;
-//        current_state.current_position -= dp;
-//        current_state.tick_count = new_tick_count;
-//        stepBackward(STEP_DELAY_SHOW);
-//    }
-//
-//  }
   
   // Work out the different between the target height and the current height and apply any
   // movement co compensate.
@@ -256,8 +175,6 @@ State update(State current_state, Command command) {
  * Arduino initalisation.
  */
 void setup() {
-  Serial.begin(9600);
-
   // Move the robot to its starting position when we are powered on.
   pinMode(POS_ENDSTOP, INPUT);
   pinMode(POS_TICKER, INPUT);
@@ -265,7 +182,11 @@ void setup() {
   pinMode(STEPPER_DIR, OUTPUT);
   pinMode(ACTUATOR_UP, OUTPUT);
   pinMode(ACTUATOR_DOWN, OUTPUT);
-  pinMode(13, OUTPUT);
+  pinMode(POS_1, INPUT);
+  pinMode(POS_2, INPUT);
+  pinMode(POS_3, INPUT);
+  pinMode(POS_4, INPUT);
+  pinMode(POS_5, INPUT);
 
   // Wind the stepper to the starting position.
   while (digitalRead(POS_ENDSTOP) == HIGH) {
@@ -279,13 +200,11 @@ void setup() {
   }
   digitalWrite(ACTUATOR_UP, LOW);
 
-  attachInterrupt(1, updatePosTicks, RISING);  // Sets pin 2 on the Arduino as a RISING interrupt.
-
   // Initalise the state of the robot.
-  state.tick_count = getPosTicks();
   state.current_position = 0;
   state.target_position = 0;
   state.target_height = 0.0;
+  Serial.begin(9600);
 }
 
 /**
