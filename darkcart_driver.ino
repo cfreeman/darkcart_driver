@@ -39,10 +39,9 @@ static const int ACTUATOR_DOWN = 7;        // The on/off pin for turning the act
 static const int ACTUATOR_POT = 0;         // The pin for measuring the current position of the actuator.
 static const int STEP_DELAY_INIT = 80;
 static const long STEP_DELAY_SHOW = 250;
-static const long MIN_TICK_TIME = 800;     // The minimum time to allow between reed switch ticks. Increase if switch bounding is a problem.
 static const int ACTUATOR_LOWER = 27;      // Minimum value read from the actutor pot
 static const int ACTUATOR_UPPER = 937;     // Maximum value read from the actuator pot.
-static const float ACTUATOR_THRESH = 0.02; // Movement threshold for the actuator pot.
+static const float ACTUATOR_THRESH = 0.1;  // Movement threshold for the actuator pot.
 
 /**
  * ReadCommand sucks down the lastest command from the serial port, returns
@@ -144,17 +143,20 @@ State update(State current_state, Command command) {
   }
 
   current_state.current_position = currentPosition(current_state);
-  if (current_state.target_position - current_state.current_position > 0) {
+  if (current_state.target_position - current_state.current_position > 0 &&
+      digitalRead(POS_FARSTOP) == HIGH) {
     stepForward(STEP_DELAY_SHOW);
 
-  } else if (current_state.target_position - current_state.current_position < 0) {
+  } else if (current_state.target_position - current_state.current_position < 0 &&
+             digitalRead(POS_ENDSTOP) == HIGH) {
     stepBackward(STEP_DELAY_SHOW);
 
   }
-  
+
   // Work out the different between the target height and the current height and apply any
   // movement co compensate.
   float dh = currentHeight() - current_state.target_height;
+
   if (dh < ACTUATOR_THRESH && dh > -ACTUATOR_THRESH ) {
       digitalWrite(ACTUATOR_UP, LOW);
       digitalWrite(ACTUATOR_DOWN, LOW);
